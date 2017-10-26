@@ -43,17 +43,6 @@ type ServiceItem struct {
 	TypeName          string `json:"TypeName"`
 }
 
-// ServiceItemExtended provides a flattened view
-// of the service with details of the application
-// it belongs too and the replicas/partitions
-type ServiceItemExtended struct {
-	ServiceItem
-	HasHTTPEndpoint bool
-	IsHealthy       bool
-	Application     ApplicationItem
-	Partitions      []PartitionItemExtended
-}
-
 // PartitionItemsPage encapsulates the paged response
 // model for ParititonItems in the Service Fabric API
 type PartitionItemsPage struct {
@@ -79,16 +68,6 @@ type PartitionItem struct {
 	PartitionStatus      string `json:"PartitionStatus"`
 	ServiceKind          string `json:"ServiceKind"`
 	TargetReplicaSetSize int64  `json:"TargetReplicaSetSize"`
-}
-
-// PartitionItemExtended provides a flattened view
-// of a services partitions
-type PartitionItemExtended struct {
-	PartitionItem
-	HasReplicas  bool
-	Replicas     []ReplicaItem
-	HasInstances bool
-	Instances    []InstanceItem
 }
 
 // ReplicaItemBase shared data used
@@ -162,10 +141,6 @@ type ServiceType struct {
 	ServiceManifestName    string `json:"ServiceManifestName"`
 	IsServiceGroup         bool   `json:"IsServiceGroup"`
 }
-
-// ServiceExtensionData encapsulates the extension model
-// for any extensions defined in a Service's manifest
-type ServiceExtensionData map[string]map[string]string
 
 // KeyValuePair represents a key value pair structure
 type KeyValuePair struct {
