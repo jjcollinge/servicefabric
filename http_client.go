@@ -13,16 +13,21 @@ type HTTPClient interface {
 
 // HTTPClientImpl is an implementation of HTTPClient
 // that wraps the net/http HTTP client
-type HTTPClientImpl struct {
+type httpClientImpl struct {
 	client http.Client
 }
 
+// NewHTTPClient creates a new HTTPClient instance
+func NewHTTPClient(client http.Client) HTTPClient {
+	return &httpClientImpl{client: client}
+}
+
 // Get is a method that implements a HTTP GET request
-func (c *HTTPClientImpl) Get(url string) (resp *http.Response, err error) {
+func (c *httpClientImpl) Get(url string) (resp *http.Response, err error) {
 	return c.client.Get(url)
 }
 
 // Transport sets the HTTP client transport property
-func (c *HTTPClientImpl) Transport(transport *http.Transport) {
+func (c *httpClientImpl) Transport(transport *http.Transport) {
 	c.client.Transport = transport
 }
