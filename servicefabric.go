@@ -31,7 +31,7 @@ type clientImpl struct {
 	clusterName string     `description:"Service Fabric cluster name"`
 }
 
-// NewClient returns a new Provider client that can query the
+// NewClient returns a new provider client that can query the
 // Service Fabric management API externally or internally
 func NewClient(httpClient HTTPClient, endpoint, apiVersion, clientCertFilePath, clientCertKeyFilePath, caCertFilePath string) (Client, error) {
 	if endpoint == "" {
