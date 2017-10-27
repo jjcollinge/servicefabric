@@ -33,9 +33,18 @@ type clientImpl struct {
 	clusterName string     `description:"Service Fabric cluster name"`
 }
 
+const defaultAPIVersion string = "3.0"
+
 // NewClientWithNoAuth creates a new Service Fabric client using
 // no authentication.
 func NewClientWithNoAuth(httpClient HTTPClient, endpoint, apiVersion string) (Client, error) {
+	if endpoint == "" {
+		return nil, errors.New("endpoint missing for client configuration")
+	}
+	if apiVersion == "" {
+		apiVersion = defaultAPIVersion
+	}
+
 	return &clientImpl{
 		endpoint:   endpoint,
 		apiVersion: apiVersion,
@@ -59,7 +68,7 @@ func NewClientWithCertAuth(httpClient HTTPClient, endpoint, apiVersion, clientCe
 		return nil, errors.New("clientCertKeyFilePath is required but not provided")
 	}
 	if apiVersion == "" {
-		apiVersion = "3.0.0"
+		apiVersion = defaultAPIVersion
 	}
 
 	cert, err := tls.LoadX509KeyPair(clientCertFilePath, clientCertKeyFilePath)
@@ -103,7 +112,7 @@ func NewClientWithBasicAuth(httpClient HTTPClient, endpoint, apiVersion, usernam
 		return nil, errors.New("password is required but not provided")
 	}
 	if apiVersion == "" {
-		apiVersion = "3.0.0"
+		apiVersion = defaultAPIVersion
 	}
 
 	transport := ntlmssp.Negotiator{RoundTripper: &http.Transport{}}
