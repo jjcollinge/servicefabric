@@ -65,7 +65,7 @@ func TestGetApplications(t *testing.T) {
 	}
 	isEqual := reflect.DeepEqual(expected, actual)
 	if !isEqual {
-		t.Error("actual != expected")
+		t.Error("actual should equal expected")
 	}
 }
 
@@ -93,7 +93,40 @@ func TestGetServices(t *testing.T) {
 	}
 	isEqual := reflect.DeepEqual(expected, actual)
 	if !isEqual {
-		t.Error("actual != expected")
+		t.Error("actual should equal expected")
+	}
+}
+
+func TestGetServicesWithNonExistentApplicationReturnsDefaultTypeAndError(t *testing.T) {
+	sfClient := setupClient()
+	expected := &ServiceItemsPage{}
+	actual, err := sfClient.GetServices("TestApplicationNonExistent")
+	if err == nil {
+		t.Errorf("Error should have been returned")
+	}
+	isEqual := reflect.DeepEqual(expected, actual)
+	if !isEqual {
+		t.Error("actual should equal expected")
+	}
+}
+
+func TestGetServicesWithNonExistentApplicationReturnsDefaultTypeAndErrorOnly(t *testing.T) {
+	sfClient := setupClient()
+	notExpected := &ServiceItemsPage{
+		ContinuationToken: nil,
+		Items: []ServiceItem{
+			ServiceItem{
+				HasPersistedState: true,
+			},
+		},
+	}
+	actual, err := sfClient.GetServices("TestApplicationNonExistent")
+	if err == nil {
+		t.Errorf("Error should have been returned")
+	}
+	isEqual := reflect.DeepEqual(notExpected, actual)
+	if isEqual {
+		t.Error("actual should not equal notExpected")
 	}
 }
 
@@ -139,6 +172,72 @@ func TestGetPartitions(t *testing.T) {
 	}
 }
 
+func TestGetPartitionsWithNonExistentApplicationReturnsDefaultTypeAndError(t *testing.T) {
+	sfClient := setupClient()
+	expected := &PartitionItemsPage{}
+	actual, err := sfClient.GetPartitions("TestApplicationNoneExistent", "TestApplication/TestService")
+	if err == nil {
+		t.Errorf("Error should have been returned")
+	}
+	isEqual := reflect.DeepEqual(expected, actual)
+	if !isEqual {
+		t.Error("actual should equal expected")
+	}
+}
+
+func TestGetPartitionsWithNonExistentApplicationReturnsDefaultTypeAndErrorOnly(t *testing.T) {
+	sfClient := setupClient()
+	notExpected := &PartitionItemsPage{
+		ContinuationToken: nil,
+		Items: []PartitionItem{
+			PartitionItem{
+				HealthState: "ERROR",
+			},
+		},
+	}
+	actual, err := sfClient.GetPartitions("TestApplicationNoneExistent", "TestApplication/TestService")
+	if err == nil {
+		t.Errorf("Error should have been returned")
+	}
+	isEqual := reflect.DeepEqual(notExpected, actual)
+	if isEqual {
+		t.Error("actual should not equal notExpected")
+	}
+}
+
+func TestGetPartitionsWithNonExistentServiceReturnsDefaultTypeAndError(t *testing.T) {
+	sfClient := setupClient()
+	expected := &PartitionItemsPage{}
+	actual, err := sfClient.GetPartitions("TestApplicationNoneExistent", "TestApplication/TestServiceNonExistent")
+	if err == nil {
+		t.Errorf("Error should have been returned")
+	}
+	isEqual := reflect.DeepEqual(expected, actual)
+	if !isEqual {
+		t.Error("actual should equal expected")
+	}
+}
+
+func TestGetPartitionsWithNonExistentServiceReturnsDefaultTypeAndErrorOnly(t *testing.T) {
+	sfClient := setupClient()
+	notExpected := &PartitionItemsPage{
+		ContinuationToken: nil,
+		Items: []PartitionItem{
+			PartitionItem{
+				HealthState: "ERROR",
+			},
+		},
+	}
+	actual, err := sfClient.GetPartitions("TestApplicationNoneExistent", "TestApplication/TestServiceNonExistent")
+	if err == nil {
+		t.Errorf("Error should have been returned")
+	}
+	isEqual := reflect.DeepEqual(notExpected, actual)
+	if isEqual {
+		t.Error("actual should not equal notExpected")
+	}
+}
+
 func TestGetReplicas(t *testing.T) {
 	expected := &ReplicaItemsPage{
 		ContinuationToken: nil,
@@ -164,7 +263,109 @@ func TestGetReplicas(t *testing.T) {
 	}
 	isEqual := reflect.DeepEqual(expected, actual)
 	if !isEqual {
-		t.Error("actual != expected")
+		t.Error("actual should be equal to expected")
+	}
+}
+
+func TestGetReplicasWithNonExistentApplicationReturnsDefaultTypeAndError(t *testing.T) {
+	expected := &ReplicaItemsPage{}
+	sfClient := setupClient()
+	actual, err := sfClient.GetReplicas("TestApplicationNonExistent", "TestApplication/TestService", "bce46a8c-b62d-4996-89dc-7ffc00a96902")
+	if err == nil {
+		t.Errorf("Error should have been returned")
+	}
+	isEqual := reflect.DeepEqual(expected, actual)
+	if !isEqual {
+		t.Error("actual should equal expected")
+	}
+}
+
+func TestGetReplicasWithNonExistentApplicationReturnsDefaultTypeAndErrorOnly(t *testing.T) {
+	notExpected := &ReplicaItemsPage{
+		ContinuationToken: nil,
+		Items: []ReplicaItem{
+			ReplicaItem{
+				ReplicaItemBase: nil,
+				ID:              "00001",
+			},
+		},
+	}
+	sfClient := setupClient()
+	actual, err := sfClient.GetReplicas("TestApplicationNonExistent", "TestApplication/TestService", "bce46a8c-b62d-4996-89dc-7ffc00a96902")
+	if err == nil {
+		t.Errorf("Error should have been returned")
+	}
+	isEqual := reflect.DeepEqual(notExpected, actual)
+	if isEqual {
+		t.Error("actual should not equal notExpected")
+	}
+}
+
+func TestGetReplicasWithNonExistentServiceReturnsDefaultTypeAndError(t *testing.T) {
+	expected := &ReplicaItemsPage{}
+	sfClient := setupClient()
+	actual, err := sfClient.GetReplicas("TestApplication", "TestApplication/TestServiceNonExistent", "bce46a8c-b62d-4996-89dc-7ffc00a96902")
+	if err == nil {
+		t.Errorf("Error should have been returned")
+	}
+	isEqual := reflect.DeepEqual(expected, actual)
+	if !isEqual {
+		t.Error("actual should equal expected")
+	}
+}
+
+func TestGetReplicasWithNonExistentServiceReturnsDefaultTypeAndErrorOnly(t *testing.T) {
+	notExpected := &ReplicaItemsPage{
+		ContinuationToken: nil,
+		Items: []ReplicaItem{
+			ReplicaItem{
+				ReplicaItemBase: nil,
+				ID:              "00001",
+			},
+		},
+	}
+	sfClient := setupClient()
+	actual, err := sfClient.GetReplicas("TestApplication", "TestApplication/TestServiceNonExistent", "bce46a8c-b62d-4996-89dc-7ffc00a96902")
+	if err == nil {
+		t.Errorf("Error should have been returned")
+	}
+	isEqual := reflect.DeepEqual(notExpected, actual)
+	if isEqual {
+		t.Error("actual should not equal notExpected")
+	}
+}
+
+func TestGetReplicasWithNonExistentPartitionReturnsDefaultTypeAndError(t *testing.T) {
+	expected := &ReplicaItemsPage{}
+	sfClient := setupClient()
+	actual, err := sfClient.GetReplicas("TestApplication", "TestApplication/TestService", "bce46a8c-b62d-4996-89dc-NonExistent")
+	if err == nil {
+		t.Errorf("Error should have been returned")
+	}
+	isEqual := reflect.DeepEqual(expected, actual)
+	if !isEqual {
+		t.Error("actual should equal expected")
+	}
+}
+
+func TestGetReplicasWithNonExistentPartitionReturnsDefaultTypeAndErrorOnly(t *testing.T) {
+	notExpected := &ReplicaItemsPage{
+		ContinuationToken: nil,
+		Items: []ReplicaItem{
+			ReplicaItem{
+				ReplicaItemBase: nil,
+				ID:              "00001",
+			},
+		},
+	}
+	sfClient := setupClient()
+	actual, err := sfClient.GetReplicas("TestApplication", "TestApplication/TestService", "bce46a8c-b62d-4996-89dc-NonExistent")
+	if err == nil {
+		t.Errorf("Error should have been returned")
+	}
+	isEqual := reflect.DeepEqual(notExpected, actual)
+	if isEqual {
+		t.Error("actual should not equal notExpected")
 	}
 }
 
@@ -192,7 +393,109 @@ func TestGetInstances(t *testing.T) {
 	}
 	isEqual := reflect.DeepEqual(expected, actual)
 	if !isEqual {
-		t.Error("actual != expected")
+		t.Error("actual should be equal to expected")
+	}
+}
+
+func TestGetInstancesWithNonExistentApplicationReturnsDefaultTypeAndError(t *testing.T) {
+	expected := &InstanceItemsPage{}
+	sfClient := setupClient()
+	actual, err := sfClient.GetInstances("TestApplicationNonExistent", "TestApplication/TestService", "824091ba-fa32-4e9c-9e9c-71738e018312")
+	if err == nil {
+		t.Errorf("Error should have been returned")
+	}
+	isEqual := reflect.DeepEqual(expected, actual)
+	if !isEqual {
+		t.Error("actual should equal expected")
+	}
+}
+
+func TestGetInstancesWithNonExistentApplicationReturnsDefaultTypeAndErrorOnly(t *testing.T) {
+	notExpected := &InstanceItemsPage{
+		ContinuationToken: nil,
+		Items: []InstanceItem{
+			InstanceItem{
+				ReplicaItemBase: nil,
+				ID:              "00001",
+			},
+		},
+	}
+	sfClient := setupClient()
+	actual, err := sfClient.GetInstances("TestApplicationNonExistent", "TestApplication/TestService", "824091ba-fa32-4e9c-9e9c-71738e018312")
+	if err == nil {
+		t.Errorf("Error should have been returned")
+	}
+	isEqual := reflect.DeepEqual(notExpected, actual)
+	if isEqual {
+		t.Error("actual should not equal notExpected")
+	}
+}
+
+func TestGetInstancesWithNonExistentServiceReturnsDefaultTypeAndError(t *testing.T) {
+	expected := &InstanceItemsPage{}
+	sfClient := setupClient()
+	actual, err := sfClient.GetInstances("TestApplication", "TestApplication/TestServiceNonExistent", "824091ba-fa32-4e9c-9e9c-71738e018312")
+	if err == nil {
+		t.Errorf("Error should have been returned")
+	}
+	isEqual := reflect.DeepEqual(expected, actual)
+	if !isEqual {
+		t.Error("actual should equal expected")
+	}
+}
+
+func TestGetInstancesWithNonExistentServiceReturnsDefaultTypeAndErrorOnly(t *testing.T) {
+	notExpected := &InstanceItemsPage{
+		ContinuationToken: nil,
+		Items: []InstanceItem{
+			InstanceItem{
+				ReplicaItemBase: nil,
+				ID:              "00001",
+			},
+		},
+	}
+	sfClient := setupClient()
+	actual, err := sfClient.GetInstances("TestApplication", "TestApplication/TestServiceNonExistent", "824091ba-fa32-4e9c-9e9c-71738e018312")
+	if err == nil {
+		t.Errorf("Error should have been returned")
+	}
+	isEqual := reflect.DeepEqual(notExpected, actual)
+	if isEqual {
+		t.Error("actual should not equal notExpected")
+	}
+}
+
+func TestGetInstancesWithNonExistentPartitionReturnsDefaultTypeAndError(t *testing.T) {
+	expected := &InstanceItemsPage{}
+	sfClient := setupClient()
+	actual, err := sfClient.GetInstances("TestApplication", "TestApplication/TestService", "bce46a8c-b62d-4996-89dc-NonExistent")
+	if err == nil {
+		t.Errorf("Error should have been returned")
+	}
+	isEqual := reflect.DeepEqual(expected, actual)
+	if !isEqual {
+		t.Error("actual should equal expected")
+	}
+}
+
+func TestGetInstancesWithNonExistentPartitionReturnsDefaultTypeAndErrorOnly(t *testing.T) {
+	notExpected := &InstanceItemsPage{
+		ContinuationToken: nil,
+		Items: []InstanceItem{
+			InstanceItem{
+				ReplicaItemBase: nil,
+				ID:              "00001",
+			},
+		},
+	}
+	sfClient := setupClient()
+	actual, err := sfClient.GetInstances("TestApplication", "TestApplication/TestService", "bce46a8c-b62d-4996-89dc-NonExistent")
+	if err == nil {
+		t.Errorf("Error should have been returned")
+	}
+	isEqual := reflect.DeepEqual(notExpected, actual)
+	if isEqual {
+		t.Error("actual should not equal notExpected")
 	}
 }
 
@@ -209,8 +512,11 @@ func TestGetServiceExtension(t *testing.T) {
 		ServiceStatus:     "Active",
 		TypeName:          "Test",
 	}
-	actual, err := sfClient.GetServiceExtension("TestApplication", "1.0.0", "Test", service, &ResponseType{})
-	extension := actual.(*ResponseType)
+	var extension, initial ResponseType
+	err := sfClient.GetServiceExtension("TestApplication", "1.0.0", "Test", service, &extension)
+	if extension == initial {
+		t.Error("Extension should have been populated")
+	}
 	if err != nil {
 		t.Errorf("Exception thrown %v", err)
 	}
@@ -235,9 +541,10 @@ func TestGetServiceExtensionNoMatchingServiceTypeName(t *testing.T) {
 		ServiceStatus:     "Active",
 		TypeName:          "Test1",
 	}
-	extensions, err := sfClient.GetServiceExtension("TestApplication", "1.0.0", "MissingKey", service, &ResponseType{})
-	if extensions != nil {
-		t.Error("Should have returned nil interface as no matching extensions")
+	var extension, initial ResponseType
+	err := sfClient.GetServiceExtension("TestApplication", "1.0.0", "MissingKey", service, &extension)
+	if extension != initial {
+		t.Error("Should have returned default ResponseType")
 	}
 	if err != nil {
 		t.Error("Should not have thrown")
@@ -257,12 +564,10 @@ func TestGetServiceExtensionNoMatchingExtensions(t *testing.T) {
 		ServiceStatus:     "Active",
 		TypeName:          "Test",
 	}
-	extensions, err := sfClient.GetServiceExtension("TestApplication", "1.0.1", "Test", service, &ResponseType{})
-	if extensions != nil {
-		t.Error("Should have returned nil interface as no matching extensions")
-	}
-	if err != nil {
-		t.Error("Should not have thrown")
+	var extension, initial ResponseType
+	_ = sfClient.GetServiceExtension("TestApplication", "1.0.1", "Test", service, &extension)
+	if extension != initial {
+		t.Error("Should have returned default ResponseType")
 	}
 }
 
@@ -279,13 +584,29 @@ func TestGetServiceExtensionWrongType(t *testing.T) {
 		ServiceStatus:     "Active",
 		TypeName:          "Test",
 	}
-	actual, _ := sfClient.GetServiceExtension("TestApplication", "1.0.0", "Test", service, &WrongType{})
-	extension, ok := actual.(*ResponseType)
-	if ok {
-		t.Error("Type assertion should have failed")
+	var extension, initial WrongType
+	_ = sfClient.GetServiceExtension("TestApplication", "1.0.0", "Test", service, &extension)
+	if extension != initial {
+		t.Error("Should have returned default ResponseType")
 	}
-	if extension != nil {
-		t.Error("Extension should have been nil")
+}
+
+func TestGetServiceExtensionWithNonExistentApplicationReturnsDefaultTypeAndErrorName(t *testing.T) {
+	sfClient := setupClient()
+	service := &ServiceItem{
+		HasPersistedState: true,
+		HealthState:       "Ok",
+		ID:                "TestApplication/TestService",
+		IsServiceGroup:    false,
+		ManifestVersion:   "1.0.0",
+		Name:              "fabric:/TestApplication/TestService",
+		ServiceKind:       "Stateful",
+		ServiceStatus:     "Active",
+		TypeName:          "Test",
+	}
+	err := sfClient.GetServiceExtension("TestApplicationNonExistent", "1.0.0", "Test", service, &ResponseType{})
+	if err == nil {
+		t.Error("Error should have thrown")
 	}
 }
 
