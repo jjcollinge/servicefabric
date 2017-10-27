@@ -8,13 +8,10 @@ import (
 
 func setupClient() Client {
 	httpClient := &mockHTTPClient{}
-	sfClient, _ := NewClient(
+	sfClient, _ := NewClientWithNoAuth(
 		httpClient,
 		"Test",
-		"1.0",
-		"",
-		"",
-		"")
+		"1.0")
 	return sfClient
 }
 

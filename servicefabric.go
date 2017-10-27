@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+
+	ntlmssp "github.com/Azure/go-ntlmssp"
 )
 
 // Client is an interface for Service Fabric client's
@@ -26,49 +28,91 @@ type Client interface {
 
 type clientImpl struct {
 	endpoint    string     `description:"Service Fabric cluster management endpoint"`
-	restClient  HTTPClient `description:"Reusable HTTP client"`
+	http        HTTPClient `description:"Reusable HTTP client"`
 	apiVersion  string     `description:"Service Fabric API version"`
 	clusterName string     `description:"Service Fabric cluster name"`
 }
 
-// NewClient returns a new provider client that can query the
-// Service Fabric management API externally or internally
-func NewClient(httpClient HTTPClient, endpoint, apiVersion, clientCertFilePath, clientCertKeyFilePath, caCertFilePath string) (Client, error) {
+// NewClientWithNoAuth creates a new Service Fabric client using
+// no authentication.
+func NewClientWithNoAuth(httpClient HTTPClient, endpoint, apiVersion string) (Client, error) {
+	return &clientImpl{
+		endpoint:   endpoint,
+		apiVersion: apiVersion,
+		http:       httpClient,
+	}, nil
+}
+
+// NewClientWithCertAuth creates a new Service Fabric client using
+// certificate authentication.
+func NewClientWithCertAuth(httpClient HTTPClient, endpoint, apiVersion, clientCertFilePath, clientCertKeyFilePath, caCertFilePath string) (Client, error) {
 	if endpoint == "" {
 		return nil, errors.New("endpoint missing for client configuration")
 	}
+	if caCertFilePath == "" {
+		return nil, errors.New("caCertFilePath is required but not provided")
+	}
+	if clientCertFilePath == "" {
+		return nil, errors.New("clientCertFilePath is required but not provided")
+	}
+	if clientCertKeyFilePath == "" {
+		return nil, errors.New("clientCertKeyFilePath is required but not provided")
+	}
+	if apiVersion == "" {
+		apiVersion = "3.0.0"
+	}
 
+	cert, err := tls.LoadX509KeyPair(clientCertFilePath, clientCertKeyFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("unable to load X509 key pair %v", err)
+	}
+	caCert, err := ioutil.ReadFile(caCertFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("unable read CA certificate file %v", err)
+	}
+	caCertPool := x509.NewCertPool()
+	caCertPool.AppendCertsFromPEM(caCert)
+	tlsConfig := &tls.Config{
+		Certificates:       []tls.Certificate{cert},
+		RootCAs:            caCertPool,
+		InsecureSkipVerify: true,
+		Renegotiation:      tls.RenegotiateFreelyAsClient,
+	}
+	tlsConfig.BuildNameToCertificate()
+	transport := &http.Transport{TLSClientConfig: tlsConfig}
+	httpClient.Transport(transport)
 	client := &clientImpl{
 		endpoint:   endpoint,
 		apiVersion: apiVersion,
+		http:       httpClient,
 	}
 
-	if caCertFilePath != "" {
-		cert, err := tls.LoadX509KeyPair(clientCertFilePath, clientCertKeyFilePath)
-		if err != nil {
-			return nil, fmt.Errorf("unable to load X509 key pair %v", err)
-		}
+	return client, nil
+}
 
-		caCert, err := ioutil.ReadFile(caCertFilePath)
-		if err != nil {
-			return nil, fmt.Errorf("unable read CA certificate file %v", err)
-		}
+// NewClientWithBasicAuth creates a new Service Fabric client using
+// basic authentication.
+func NewClientWithBasicAuth(httpClient HTTPClient, endpoint, apiVersion, username, password string) (Client, error) {
+	if endpoint == "" {
+		return nil, errors.New("endpoint missing for client configuration")
+	}
+	if username == "" {
+		return nil, errors.New("username is required but not provided")
+	}
+	if password == "" {
+		return nil, errors.New("password is required but not provided")
+	}
+	if apiVersion == "" {
+		apiVersion = "3.0.0"
+	}
 
-		caCertPool := x509.NewCertPool()
-		caCertPool.AppendCertsFromPEM(caCert)
-		tlsConfig := &tls.Config{
-			Certificates:       []tls.Certificate{cert},
-			RootCAs:            caCertPool,
-			InsecureSkipVerify: true,
-			Renegotiation:      tls.RenegotiateFreelyAsClient,
-		}
-		tlsConfig.BuildNameToCertificate()
-		transport := &http.Transport{TLSClientConfig: tlsConfig}
-
-		httpClient.Transport(transport)
-		client.restClient = httpClient
-	} else {
-		client.restClient = httpClient
+	transport := ntlmssp.Negotiator{RoundTripper: &http.Transport{}}
+	httpClient.Transport(transport)
+	httpClient.AddBasicAuth(username, password)
+	client := &clientImpl{
+		endpoint:   endpoint,
+		apiVersion: apiVersion,
+		http:       httpClient,
 	}
 	return client, nil
 }
@@ -85,7 +129,7 @@ func (c *clientImpl) GetApplications() (*ApplicationItemsPage, error) {
 		} else {
 			url = c.endpoint + "/Applications/?api-version=" + c.apiVersion + "&continue=" + continueToken
 		}
-		res, err := getHTTP(c.restClient, url)
+		res, err := getHTTP(c.http, url)
 		if err != nil {
 			return &ApplicationItemsPage{}, err
 		}
@@ -115,7 +159,7 @@ func (c *clientImpl) GetServices(appName string) (*ServiceItemsPage, error) {
 		} else {
 			url = c.endpoint + "/Applications/" + appName + "/$/GetServices?api-version=" + c.apiVersion + "&continue=" + continueToken
 		}
-		res, err := getHTTP(c.restClient, url)
+		res, err := getHTTP(c.http, url)
 		if err != nil {
 			return &ServiceItemsPage{}, err
 		}
@@ -145,7 +189,7 @@ func (c *clientImpl) GetPartitions(appName, serviceName string) (*PartitionItems
 		} else {
 			url = c.endpoint + "/Applications/" + appName + "/$/GetServices/" + serviceName + "/$/GetPartitions/?api-version=" + c.apiVersion + "&continue=" + continueToken
 		}
-		res, err := getHTTP(c.restClient, url)
+		res, err := getHTTP(c.http, url)
 		if err != nil {
 			return &PartitionItemsPage{}, err
 		}
@@ -175,7 +219,7 @@ func (c *clientImpl) GetInstances(appName, serviceName, partitionName string) (*
 		} else {
 			url = c.endpoint + "/Applications/" + appName + "/$/GetServices/" + serviceName + "/$/GetPartitions/" + partitionName + "/$/GetReplicas?api-version=" + c.apiVersion + "&continue=" + continueToken
 		}
-		res, err := getHTTP(c.restClient, url)
+		res, err := getHTTP(c.http, url)
 		if err != nil {
 			return &InstanceItemsPage{}, err
 		}
@@ -205,7 +249,7 @@ func (c *clientImpl) GetReplicas(appName, serviceName, partitionName string) (*R
 		} else {
 			url = c.endpoint + "/Applications/" + appName + "/$/GetServices/" + serviceName + "/$/GetPartitions/" + partitionName + "/$/GetReplicas?api-version=" + c.apiVersion + "&continue=" + continueToken
 		}
-		res, err := getHTTP(c.restClient, url)
+		res, err := getHTTP(c.http, url)
 		if err != nil {
 			return &ReplicaItemsPage{}, err
 		}
@@ -223,13 +267,13 @@ func (c *clientImpl) GetReplicas(appName, serviceName, partitionName string) (*R
 	return &aggregateReplicaItemsPages, nil
 }
 
-// GetServicesExtensions retruns all the extensions specified
+// GetServiceExtensions retuns all the extensions specified
 // in a Service's manifest file. If the XML schema does not
 // map to the provided interface, the default type interface will
 // be returned.
 func (c *clientImpl) GetServiceExtension(appType, applicationVersion, extensionKey string, service *ServiceItem, response interface{}) error {
 	url := c.endpoint + "/ApplicationTypes/" + appType + "/$/GetServiceTypes?api-version=" + c.apiVersion + "&ApplicationTypeVersion=" + applicationVersion
-	res, err := getHTTP(c.restClient, url)
+	res, err := getHTTP(c.http, url)
 
 	if err != nil {
 		return fmt.Errorf("error requesting service extensions: %v", err)

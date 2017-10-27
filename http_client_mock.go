@@ -151,7 +151,9 @@ func (c *mockHTTPClient) Get(url string) (resp *http.Response, err error) {
 	}
 }
 
-func (c *mockHTTPClient) Transport(transport *http.Transport) {}
+func (c *mockHTTPClient) Transport(transport http.RoundTripper) {}
+
+func (c *mockHTTPClient) AddBasicAuth(username, password string) {}
 
 func buildSuccessResponse(body string) *http.Response {
 	return &http.Response{
