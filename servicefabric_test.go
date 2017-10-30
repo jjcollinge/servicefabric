@@ -14,7 +14,7 @@ func setupClient() Client {
 		"1.0",
 		"",
 		"",
-		"")
+		false)
 	return sfClient
 }
 

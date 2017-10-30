@@ -3,7 +3,6 @@ package servicefabric
 
 import (
 	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"encoding/xml"
 	"errors"
@@ -26,16 +25,21 @@ type Client interface {
 
 type clientImpl struct {
 	endpoint    string     `description:"Service Fabric cluster management endpoint"`
-	restClient  HTTPClient `description:"Reusable HTTP client"`
+	http        HTTPClient `description:"Reusable HTTP client"`
 	apiVersion  string     `description:"Service Fabric API version"`
 	clusterName string     `description:"Service Fabric cluster name"`
 }
 
+const defaultAPIVersion string = "3.0"
+
 // NewClient returns a new provider client that can query the
 // Service Fabric management API externally or internally
-func NewClient(httpClient HTTPClient, endpoint, apiVersion, clientCertFilePath, clientCertKeyFilePath, caCertFilePath string) (Client, error) {
+func NewClient(httpClient HTTPClient, endpoint, apiVersion, clientCertFilePath, clientCertKeyFilePath string, insecureSkipVerify bool) (Client, error) {
 	if endpoint == "" {
 		return nil, errors.New("endpoint missing for client configuration")
+	}
+	if apiVersion == "" {
+		apiVersion = defaultAPIVersion
 	}
 
 	client := &clientImpl{
@@ -43,32 +47,22 @@ func NewClient(httpClient HTTPClient, endpoint, apiVersion, clientCertFilePath, 
 		apiVersion: apiVersion,
 	}
 
-	if caCertFilePath != "" {
+	if clientCertFilePath != "" && clientCertKeyFilePath != "" {
 		cert, err := tls.LoadX509KeyPair(clientCertFilePath, clientCertKeyFilePath)
 		if err != nil {
 			return nil, fmt.Errorf("unable to load X509 key pair %v", err)
 		}
-
-		caCert, err := ioutil.ReadFile(caCertFilePath)
-		if err != nil {
-			return nil, fmt.Errorf("unable read CA certificate file %v", err)
-		}
-
-		caCertPool := x509.NewCertPool()
-		caCertPool.AppendCertsFromPEM(caCert)
 		tlsConfig := &tls.Config{
 			Certificates:       []tls.Certificate{cert},
-			RootCAs:            caCertPool,
-			InsecureSkipVerify: true,
+			InsecureSkipVerify: insecureSkipVerify,
 			Renegotiation:      tls.RenegotiateFreelyAsClient,
 		}
 		tlsConfig.BuildNameToCertificate()
 		transport := &http.Transport{TLSClientConfig: tlsConfig}
-
 		httpClient.Transport(transport)
-		client.restClient = httpClient
+		client.http = httpClient
 	} else {
-		client.restClient = httpClient
+		client.http = httpClient
 	}
 	return client, nil
 }
@@ -85,7 +79,7 @@ func (c *clientImpl) GetApplications() (*ApplicationItemsPage, error) {
 		} else {
 			url = c.endpoint + "/Applications/?api-version=" + c.apiVersion + "&continue=" + continueToken
 		}
-		res, err := getHTTP(c.restClient, url)
+		res, err := getHTTP(c.http, url)
 		if err != nil {
 			return &ApplicationItemsPage{}, err
 		}
@@ -115,7 +109,7 @@ func (c *clientImpl) GetServices(appName string) (*ServiceItemsPage, error) {
 		} else {
 			url = c.endpoint + "/Applications/" + appName + "/$/GetServices?api-version=" + c.apiVersion + "&continue=" + continueToken
 		}
-		res, err := getHTTP(c.restClient, url)
+		res, err := getHTTP(c.http, url)
 		if err != nil {
 			return &ServiceItemsPage{}, err
 		}
@@ -145,7 +139,7 @@ func (c *clientImpl) GetPartitions(appName, serviceName string) (*PartitionItems
 		} else {
 			url = c.endpoint + "/Applications/" + appName + "/$/GetServices/" + serviceName + "/$/GetPartitions/?api-version=" + c.apiVersion + "&continue=" + continueToken
 		}
-		res, err := getHTTP(c.restClient, url)
+		res, err := getHTTP(c.http, url)
 		if err != nil {
 			return &PartitionItemsPage{}, err
 		}
@@ -175,7 +169,7 @@ func (c *clientImpl) GetInstances(appName, serviceName, partitionName string) (*
 		} else {
 			url = c.endpoint + "/Applications/" + appName + "/$/GetServices/" + serviceName + "/$/GetPartitions/" + partitionName + "/$/GetReplicas?api-version=" + c.apiVersion + "&continue=" + continueToken
 		}
-		res, err := getHTTP(c.restClient, url)
+		res, err := getHTTP(c.http, url)
 		if err != nil {
 			return &InstanceItemsPage{}, err
 		}
@@ -205,7 +199,7 @@ func (c *clientImpl) GetReplicas(appName, serviceName, partitionName string) (*R
 		} else {
 			url = c.endpoint + "/Applications/" + appName + "/$/GetServices/" + serviceName + "/$/GetPartitions/" + partitionName + "/$/GetReplicas?api-version=" + c.apiVersion + "&continue=" + continueToken
 		}
-		res, err := getHTTP(c.restClient, url)
+		res, err := getHTTP(c.http, url)
 		if err != nil {
 			return &ReplicaItemsPage{}, err
 		}
@@ -229,7 +223,7 @@ func (c *clientImpl) GetReplicas(appName, serviceName, partitionName string) (*R
 // be returned.
 func (c *clientImpl) GetServiceExtension(appType, applicationVersion, extensionKey string, service *ServiceItem, response interface{}) error {
 	url := c.endpoint + "/ApplicationTypes/" + appType + "/$/GetServiceTypes?api-version=" + c.apiVersion + "&ApplicationTypeVersion=" + applicationVersion
-	res, err := getHTTP(c.restClient, url)
+	res, err := getHTTP(c.http, url)
 
 	if err != nil {
 		return fmt.Errorf("error requesting service extensions: %v", err)
