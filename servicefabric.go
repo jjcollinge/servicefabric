@@ -310,7 +310,7 @@ func (c *clientImpl) GetProperties(name string) (bool, map[string]string, error)
 func (c *clientImpl) GetServiceLabels(service *ServiceItem, app *ApplicationItem, prefix string) (map[string]string, error) {
 	Labels := map[string]string{}
 	extensionData := ServiceExtensionLabels{}
-	err := c.GetServiceExtension(app.TypeName, app.TypeVersion, prefix, service, &extensionData)
+	err := c.GetServiceExtension(app.TypeName, app.TypeVersion, service.TypeName, prefix, &extensionData)
 
 	if err != nil {
 		return nil, err

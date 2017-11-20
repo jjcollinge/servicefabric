@@ -513,7 +513,7 @@ func TestGetServiceExtension(t *testing.T) {
 		TypeName:          "Test",
 	}
 	var extension, initial ResponseType
-	err := sfClient.GetServiceExtension("TestApplication", "1.0.0", "Test", service, &extension)
+	err := sfClient.GetServiceExtension("TestApplication", "1.0.0", "Test", service.TypeName, &extension)
 	if extension == initial {
 		t.Error("Extension should have been populated")
 	}
@@ -542,7 +542,7 @@ func TestGetServiceExtensionNoMatchingServiceTypeName(t *testing.T) {
 		TypeName:          "Test1",
 	}
 	var extension, initial ResponseType
-	err := sfClient.GetServiceExtension("TestApplication", "1.0.0", "MissingKey", service, &extension)
+	err := sfClient.GetServiceExtension("TestApplication", "1.0.0", "MissingKey", service.TypeName, &extension)
 	if extension != initial {
 		t.Error("Should have returned default ResponseType")
 	}
@@ -565,7 +565,7 @@ func TestGetServiceExtensionNoMatchingExtensions(t *testing.T) {
 		TypeName:          "Test",
 	}
 	var extension, initial ResponseType
-	_ = sfClient.GetServiceExtension("TestApplication", "1.0.1", "Test", service, &extension)
+	_ = sfClient.GetServiceExtension("TestApplication", "1.0.1", "Test", service.TypeName, &extension)
 	if extension != initial {
 		t.Error("Should have returned default ResponseType")
 	}
@@ -585,7 +585,7 @@ func TestGetServiceExtensionWrongType(t *testing.T) {
 		TypeName:          "Test",
 	}
 	var extension, initial WrongType
-	_ = sfClient.GetServiceExtension("TestApplication", "1.0.0", "Test", service, &extension)
+	_ = sfClient.GetServiceExtension("TestApplication", "1.0.0", "Test", service.TypeName, &extension)
 	if extension != initial {
 		t.Error("Should have returned default ResponseType")
 	}
@@ -604,7 +604,7 @@ func TestGetServiceExtensionWithNonExistentApplicationReturnsDefaultTypeAndError
 		ServiceStatus:     "Active",
 		TypeName:          "Test",
 	}
-	err := sfClient.GetServiceExtension("TestApplicationNonExistent", "1.0.0", "Test", service, &ResponseType{})
+	err := sfClient.GetServiceExtension("TestApplicationNonExistent", "1.0.0", "Test", service.TypeName, &ResponseType{})
 	if err == nil {
 		t.Error("Error should have thrown")
 	}
