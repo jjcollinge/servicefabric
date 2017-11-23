@@ -1,0 +1,15 @@
+{
+  "ContinuationToken": "",
+  "Items": [
+    {
+      "ServiceKind": "Stateful",
+      "ReplicaId": "131496928082309293",
+      "ReplicaRole": "Primary",
+      "ReplicaStatus": "Ready",
+      "HealthState": "Ok",
+      "Address": "{\"Endpoints\":{\"\":\"localhost:30001+bce46a8c-b62d-4996-89dc-7ffc00a96902-131496928082309293\"}}",
+      "NodeName": "_Node_0",
+      "LastInBuildDurationInSeconds": "1"
+    }
+  ]
+}

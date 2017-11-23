@@ -1,0 +1,17 @@
+[
+  {
+    "ServiceTypeDescription": {
+      "IsStateful": true,
+      "ServiceTypeName": "Test",
+      "PlacementConstraints": "",
+      "HasPersistedState": true,
+      "Kind": "Stateful",
+      "Extensions": [],
+      "LoadMetrics": [],
+      "ServicePlacementPolicies": []
+    },
+    "ServiceManifestVersion": "1.0.0",
+    "ServiceManifestName": "ServiceManifest",
+    "IsServiceGroup": false
+  }
+]
