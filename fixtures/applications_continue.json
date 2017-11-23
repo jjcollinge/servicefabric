@@ -1,0 +1,23 @@
+{
+  "ContinuationToken": "",
+  "Items": [
+    {
+      "Id": "TestApplication2",
+      "Name": "fabric:\/TestApplication2",
+      "TypeName": "TestApplication2Type",
+      "TypeVersion": "1.0.0",
+      "Status": "Ready",
+      "Parameters": [
+        {
+          "Key": "Param1",
+          "Value": "Value1"
+        },
+        {
+          "Key": "Param2",
+          "Value": "Value2"
+        }
+      ],
+      "HealthState": "Ok"
+    }
+  ]
+}

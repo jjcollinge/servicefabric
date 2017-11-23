@@ -1,0 +1,16 @@
+{
+  "ContinuationToken": "",
+  "Items": [
+    {
+      "Id": "TestApplication\/TestService",
+      "ServiceKind": "Stateful",
+      "Name": "fabric:\/TestApplication\/TestService",
+      "TypeName": "TestServiceType",
+      "ManifestVersion": "1.0.0",
+      "HasPersistedState": true,
+      "HealthState": "Ok",
+      "ServiceStatus": "Active",
+      "IsServiceGroup": false
+    }
+  ]
+}
