@@ -271,15 +271,10 @@ func (c Client) GetServiceLabels(service *ServiceItem, app *ApplicationItem, pre
 		return nil, err
 	}
 
-	prefixPeriod := prefix + "."
-
 	labels := map[string]string{}
 	if extensionData.Label != nil {
 		for _, label := range extensionData.Label {
-			if strings.HasPrefix(label.Key, prefixPeriod) {
-				labelKey := strings.Replace(label.Key, prefixPeriod, "", -1)
-				labels[labelKey] = label.Value
-			}
+			labels[label.Key] = label.Value
 		}
 	}
 
@@ -290,10 +285,7 @@ func (c Client) GetServiceLabels(service *ServiceItem, app *ApplicationItem, pre
 
 	if exists {
 		for k, v := range properties {
-			if strings.HasPrefix(k, prefixPeriod) {
-				labelKey := strings.Replace(k, prefixPeriod, "", -1)
-				labels[labelKey] = v
-			}
+			labels[k] = v
 		}
 	}
 
