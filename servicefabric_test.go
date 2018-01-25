@@ -372,20 +372,65 @@ func TestGetServiceExtension(t *testing.T) {
 		ServiceStatus:     "Active",
 		TypeName:          "Test",
 	}
-	var extension, initial ResponseType
+	var extension ServiceExtensionLabels
 	err := sfClient.GetServiceExtension("TestApplication", "1.0.0", "Test", service.TypeName, &extension)
-	if extension == initial {
-		t.Error("Extension should have been populated")
-	}
+
 	if err != nil {
 		t.Fatalf("Exception thrown %v", err)
 	}
 
-	if extension.Test.Value != "value1" {
-		t.Errorf("Extension value %q does not equal value1", extension.Test.Value)
+	if extension.Label[0].Value != "value1" {
+		t.Errorf("Extension value %q does not equal value1", extension.Label[0].Value)
 	}
-	if extension.Test.Key != "key1" {
-		t.Errorf("Extension key %q does not equal key1", extension.Test.Key)
+	if extension.Label[0].Key != "key1" {
+		t.Errorf("Extension key %q does not equal key1", extension.Label[0].Key)
+	}
+}
+
+func TestGetServiceExtensionMap(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(handleExtensionA))
+	defer server.Close()
+
+	sfClient, _ := NewClient(http.DefaultClient, server.URL, "1.0", nil)
+
+	service := &ServiceItem{
+		HasPersistedState: true,
+		HealthState:       "Ok",
+		ID:                "TestApplication/TestService",
+		IsServiceGroup:    false,
+		ManifestVersion:   "1.0.0",
+		Name:              "fabric:/TestApplication/TestService",
+		ServiceKind:       "Stateful",
+		ServiceStatus:     "Active",
+		TypeName:          "Test",
+	}
+	app := &ApplicationItem{
+		HealthState: "Ok",
+		ID:          "TestApplication",
+		Name:        "fabric:/TestApplication",
+		Parameters: []*AppParameter{
+			{"Param1", "Value1"},
+			{"Param2", "Value2"},
+		},
+		Status:      "Ready",
+		TypeName:    "TestApplication",
+		TypeVersion: "1.0.0",
+	}
+
+	res, err := sfClient.GetServiceExtensionMap(service, app, "Test")
+
+	if err != nil {
+		t.Fatalf("Exception thrown %v", err)
+	}
+
+	value, exists := res["key1"]
+	if !exists {
+		t.Error("Key is missing")
+		t.FailNow()
+	}
+
+	if value != "value1" {
+		t.Errorf("Incorrect value expected: value1 have: %v", value)
 	}
 }
 
