@@ -1,34 +1,33 @@
-// Package servicefabric is an opinionated Service Fabric client written in Golang
 package servicefabric
 
 import (
-	"crypto/tls"
 	"encoding/json"
 	"encoding/xml"
-	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"strings"
+
+	"github.com/ido50/requests"
+	"github.com/pkg/errors"
 )
 
 // DefaultAPIVersion is a default Service Fabric REST API version
-const DefaultAPIVersion = "3.0"
+const DefaultAPIVersion = "6.0"
+
+var ErrApplicationNotFound = errors.New("service fabric application not found")
+var ErrApplicationNotExists = errors.New("service fabric application does not exist")
 
 // Client for Service Fabric.
-// This is purposely a subset of the total Service Fabric API surface.
-type Client struct {
+type ServiceFabricClient struct {
 	// endpoint Service Fabric cluster management endpoint
 	endpoint string
 	// apiVersion Service Fabric API version
 	apiVersion string
 	// httpClient HTTP client
-	httpClient *http.Client
+	httpClient *requests.HTTPClient
 }
 
-// NewClient returns a new provider client that can query the
-// Service Fabric management API externally or internally
-func NewClient(httpClient *http.Client, endpoint, apiVersion string, tlsConfig *tls.Config) (*Client, error) {
+func NewServiceFabricClient(httpClient *requests.HTTPClient, endpoint, apiVersion string) (*ServiceFabricClient, error) {
 	if endpoint == "" {
 		return nil, errors.New("endpoint missing for httpClient configuration")
 	}
@@ -36,26 +35,18 @@ func NewClient(httpClient *http.Client, endpoint, apiVersion string, tlsConfig *
 		apiVersion = DefaultAPIVersion
 	}
 
-	if tlsConfig != nil {
-		tlsConfig.Renegotiation = tls.RenegotiateFreelyAsClient
-		tlsConfig.BuildNameToCertificate()
-		httpClient.Transport = &http.Transport{TLSClientConfig: tlsConfig}
-	}
-
-	return &Client{
+	return &ServiceFabricClient{
 		endpoint:   endpoint,
 		apiVersion: apiVersion,
 		httpClient: httpClient,
 	}, nil
 }
 
-// GetApplications returns all the registered applications
-// within the Service Fabric cluster.
-func (c Client) GetApplications() (*ApplicationItemsPage, error) {
+func (c ServiceFabricClient) GetApplications() (*ApplicationItemsPage, error) {
 	var aggregateAppItemsPages ApplicationItemsPage
 	var continueToken string
 	for {
-		res, err := c.getHTTP("Applications/", withContinue(continueToken))
+		res, _, err := c.getHTTP("Applications/", withContinue(continueToken))
 		if err != nil {
 			return nil, err
 		}
@@ -76,13 +67,46 @@ func (c Client) GetApplications() (*ApplicationItemsPage, error) {
 	return &aggregateAppItemsPages, nil
 }
 
-// GetServices returns all the services associated
-// with a Service Fabric application.
-func (c Client) GetServices(appName string) (*ServiceItemsPage, error) {
+func (c ServiceFabricClient) GetApplication(appName string) (*ApplicationItem, error) {
+	var app *ApplicationItem
+
+	res,status, err := c.getHTTP("Applications/"+appName, withParam("api-version",c.apiVersion))
+
+	if status == http.StatusNoContent{
+		return nil,ErrApplicationNotExists
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = json.Unmarshal(res, &app)
+	return app, err
+}
+
+func (c ServiceFabricClient) GetDeployment(deploymentName string) (interface{}, error) {
+	var deployment interface{}
+
+	res, status, err := c.getHTTP("ComposeDeployments/"+deploymentName, withParam("api-version",c.apiVersion))
+
+	if status == http.StatusNoContent{
+		return nil, ErrApplicationNotExists
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = json.Unmarshal(res, &deployment)
+	return deployment, err
+}
+
+
+func (c ServiceFabricClient) GetServices(appName string) (*ServiceItemsPage, error) {
 	var aggregateServiceItemsPages ServiceItemsPage
 	var continueToken string
 	for {
-		res, err := c.getHTTP("Applications/"+appName+"/$/GetServices", withContinue(continueToken))
+		res,_, err := c.getHTTP("Applications/"+appName+"/$/GetServices", withContinue(continueToken))
 		if err != nil {
 			return nil, err
 		}
@@ -103,96 +127,62 @@ func (c Client) GetServices(appName string) (*ServiceItemsPage, error) {
 	return &aggregateServiceItemsPages, nil
 }
 
-// GetPartitions returns all the partitions associated
-// with a Service Fabric service.
-func (c Client) GetPartitions(appName, serviceName string) (*PartitionItemsPage, error) {
-	var aggregatePartitionItemsPages PartitionItemsPage
-	var continueToken string
-	for {
-		basePath := "Applications/" + appName + "/$/GetServices/" + serviceName + "/$/GetPartitions/"
-		res, err := c.getHTTP(basePath, withContinue(continueToken))
-		if err != nil {
-			return nil, err
-		}
-
-		var partitionsItemsPage PartitionItemsPage
-		err = json.Unmarshal(res, &partitionsItemsPage)
-		if err != nil {
-			return nil, fmt.Errorf("could not deserialise JSON response: %+v", err)
-		}
-
-		aggregatePartitionItemsPages.Items = append(aggregatePartitionItemsPages.Items, partitionsItemsPage.Items...)
-
-		continueToken = getString(partitionsItemsPage.ContinuationToken)
-		if continueToken == "" {
-			break
-		}
+func (c ServiceFabricClient) GetClusterHealth() (bool, error) {
+	res, err := c.getHTTPRaw("$/GetClusterHealth?api-version=6.0&")
+	if err != nil {
+		return false, fmt.Errorf("error getting cluster health")
 	}
-	return &aggregatePartitionItemsPages, nil
+
+	return res == http.StatusOK, nil
 }
 
-// GetInstances returns all the instances associated
-// with a stateless Service Fabric partition.
-func (c Client) GetInstances(appName, serviceName, partitionName string) (*InstanceItemsPage, error) {
-	var aggregateInstanceItemsPages InstanceItemsPage
-	var continueToken string
-	for {
-		basePath := "Applications/" + appName + "/$/GetServices/" + serviceName + "/$/GetPartitions/" + partitionName + "/$/GetReplicas"
-		res, err := c.getHTTP(basePath, withContinue(continueToken))
-		if err != nil {
-			return nil, err
-		}
-
-		var instanceItemsPage InstanceItemsPage
-		err = json.Unmarshal(res, &instanceItemsPage)
-		if err != nil {
-			return nil, fmt.Errorf("could not deserialise JSON response: %+v", err)
-		}
-
-		aggregateInstanceItemsPages.Items = append(aggregateInstanceItemsPages.Items, instanceItemsPage.Items...)
-
-		continueToken = getString(instanceItemsPage.ContinuationToken)
-		if continueToken == "" {
-			break
-		}
+func (c ServiceFabricClient) DeleteService(serviceId string) error {
+	_ ,_, err := c.postHTTP("Services/" + serviceId + "/$/Delete",[]byte{}, withParam("api-version",c.apiVersion))
+	if err != nil {
+		return errors.Wrap(err,"failed deleting service")
 	}
-	return &aggregateInstanceItemsPages, nil
+
+	return nil
 }
 
-// GetReplicas returns all the replicas associated
-// with a stateful Service Fabric partition.
-func (c Client) GetReplicas(appName, serviceName, partitionName string) (*ReplicaItemsPage, error) {
-	var aggregateReplicaItemsPages ReplicaItemsPage
-	var continueToken string
-	for {
-		basePath := "Applications/" + appName + "/$/GetServices/" + serviceName + "/$/GetPartitions/" + partitionName + "/$/GetReplicas"
-		res, err := c.getHTTP(basePath, withContinue(continueToken))
-		if err != nil {
-			return nil, err
+func (c ServiceFabricClient) DeleteApplication(applicationId string) error {
+	_ ,status, err := c.postHTTP("Applications/" + applicationId + "/$/Delete",[]byte{},withParam("api-version",c.apiVersion))
+
+	if err != nil {
+		// handle unexpected status
+		if status > 200 && status < 300 {
+			return nil
 		}
 
-		var replicasItemsPage ReplicaItemsPage
-		err = json.Unmarshal(res, &replicasItemsPage)
-		if err != nil {
-			return nil, fmt.Errorf("could not deserialise JSON response: %+v", err)
+		if status == http.StatusNotFound {
+			return ErrApplicationNotFound
 		}
 
-		aggregateReplicaItemsPages.Items = append(aggregateReplicaItemsPages.Items, replicasItemsPage.Items...)
-
-		continueToken = getString(replicasItemsPage.ContinuationToken)
-		if continueToken == "" {
-			break
-		}
+		return errors.Wrap(err,"failed deleting application")
 	}
-	return &aggregateReplicaItemsPages, nil
+
+	return nil
 }
 
-// GetServiceExtension returns all the extensions specified
-// in a Service's manifest file. If the XML schema does not
-// map to the provided interface, the default type interface will
-// be returned.
-func (c Client) GetServiceExtension(appType, applicationVersion, serviceTypeName, extensionKey string, response interface{}) error {
-	res, err := c.getHTTP("ApplicationTypes/"+appType+"/$/GetServiceTypes", withParam("ApplicationTypeVersion", applicationVersion))
+func (c ServiceFabricClient) DeleteComposeDeployment(deploymentName string) error{
+	_ ,status, err := c.postHTTP("ComposeDeployments/" + deploymentName+ "/$/Delete",[]byte{},withParam("api-version",c.apiVersion))
+	if err != nil {
+		// handle unexpected status
+		if status > 200 && status < 300 {
+			return nil
+		}
+
+		if status == http.StatusNotFound {
+			return ErrApplicationNotFound
+		}
+		return errors.Wrap(err,"failed deleting compose deployment")
+	}
+
+	return nil
+
+}
+func (c ServiceFabricClient) GetServiceExtension(appType, applicationVersion, serviceTypeName, extensionKey string, response interface{}) error {
+	res,_, err := c.getHTTP("ApplicationTypes/"+appType+"/$/GetServiceTypes", withParam("ApplicationTypeVersion", applicationVersion))
 	if err != nil {
 		return fmt.Errorf("error requesting service extensions: %v", err)
 	}
@@ -219,10 +209,7 @@ func (c Client) GetServiceExtension(appType, applicationVersion, serviceTypeName
 	return nil
 }
 
-// GetServiceExtensionMap returns all the extension xml specified
-// in a Service's manifest file into (which must conform to ServiceExtensionLabels)
-// a map[string]string
-func (c Client) GetServiceExtensionMap(service *ServiceItem, app *ApplicationItem, extensionKey string) (map[string]string, error) {
+func (c ServiceFabricClient) GetServiceExtensionMap(service *ServiceItem, app *ApplicationItem, extensionKey string) (map[string]string, error) {
 	extensionData := ServiceExtensionLabels{}
 	err := c.GetServiceExtension(app.TypeName, app.TypeVersion, service.TypeName, extensionKey, &extensionData)
 	if err != nil {
@@ -239,11 +226,7 @@ func (c Client) GetServiceExtensionMap(service *ServiceItem, app *ApplicationIte
 	return labels, nil
 }
 
-// GetProperties uses the Property Manager API to retrieve
-// string properties from a name as a dictionary
-// Property name is the path to the properties you would like to list.
-// for example a serviceID
-func (c Client) GetProperties(name string) (bool, map[string]string, error) {
+func (c ServiceFabricClient) GetProperties(name string) (bool, map[string]string, error) {
 	nameExists, err := c.nameExists(name)
 	if err != nil {
 		return false, nil, err
@@ -257,7 +240,7 @@ func (c Client) GetProperties(name string) (bool, map[string]string, error) {
 
 	var continueToken string
 	for {
-		res, err := c.getHTTP("Names/"+name+"/$/GetProperties", withContinue(continueToken), withParam("IncludeValues", "true"))
+		res,_, err := c.getHTTP("Names/"+name+"/$/GetProperties", withContinue(continueToken), withParam("IncludeValues", "true"))
 		if err != nil {
 			return false, nil, err
 		}
@@ -284,104 +267,93 @@ func (c Client) GetProperties(name string) (bool, map[string]string, error) {
 	return true, properties, nil
 }
 
-// GetServiceLabels add labels from service manifest extensions and properties manager
-// expects extension xml in <Label key="key">value</Label>
-//
-// Deprecated: Use GetProperties and GetServiceExtensionMap instead.
-func (c Client) GetServiceLabels(service *ServiceItem, app *ApplicationItem, prefix string) (map[string]string, error) {
-	extensionData := ServiceExtensionLabels{}
-	err := c.GetServiceExtension(app.TypeName, app.TypeVersion, service.TypeName, prefix, &extensionData)
-	if err != nil {
-		return nil, err
-	}
-
-	prefixPeriod := prefix + "."
-
-	labels := map[string]string{}
-	if extensionData.Label != nil {
-		for _, label := range extensionData.Label {
-			if strings.HasPrefix(label.Key, prefixPeriod) {
-				labelKey := strings.Replace(label.Key, prefixPeriod, "", -1)
-				labels[labelKey] = label.Value
-			}
-		}
-	}
-
-	exists, properties, err := c.GetProperties(service.ID)
-	if err != nil {
-		return nil, err
-	}
-
-	if exists {
-		for k, v := range properties {
-			if strings.HasPrefix(k, prefixPeriod) {
-				labelKey := strings.Replace(k, prefixPeriod, "", -1)
-				labels[labelKey] = v
-			}
-		}
-	}
-
-	return labels, nil
-}
-
-func (c Client) nameExists(propertyName string) (bool, error) {
+func (c ServiceFabricClient) nameExists(propertyName string) (bool, error) {
 	res, err := c.getHTTPRaw("Names/" + propertyName)
 	// Get http will return error for any non 200 response code.
 	if err != nil {
 		return false, err
 	}
 
-	return res.StatusCode == http.StatusOK, nil
+	return res == http.StatusOK, nil
 }
 
-func (c Client) getHTTP(basePath string, paramsFuncs ...queryParamsFunc) ([]byte, error) {
+func (c ServiceFabricClient) getHTTP(basePath string, paramsFuncs ...queryParamsFunc) ([]byte,int, error) {
 	if c.httpClient == nil {
-		return nil, errors.New("invalid http client provided")
+		return nil,0, errors.New("invalid http client provided")
 	}
 
+	var text interface{}
+	var status int
 	url := c.getURL(basePath, paramsFuncs...)
-	res, err := c.httpClient.Get(url)
+	err := c.httpClient.
+		NewRequest("GET", url).
+		Into(&text).
+		StatusInto(&status).
+		Run()
+
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to Service Fabric server %+v on %s", err, url)
-	}
-	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Service Fabric responded with error code %s to request %s with body %v", res.Status, url, res.Body)
+		return nil,status, fmt.Errorf("failed connecting to Service Fabric server, status code %d: %s",status, err)
 	}
 
-	if res.Body == nil {
-		return nil, errors.New("empty response body from Service Fabric")
-	}
-	defer res.Body.Close()
+	b, err := json.Marshal(text)
+	return b, status, err
 
-	body, readErr := ioutil.ReadAll(res.Body)
-	if readErr != nil {
-		return nil, fmt.Errorf("failed to read response body from Service Fabric response %+v", readErr)
-	}
-	return body, nil
 }
 
-func (c Client) getHTTPRaw(basePath string) (*http.Response, error) {
+func (c ServiceFabricClient) getHTTPRaw(basePath string) (int, error) {
 	if c.httpClient == nil {
-		return nil, fmt.Errorf("invalid http client provided")
+		return -1, fmt.Errorf("invalid http client provided")
 	}
 
 	url := c.getURL(basePath)
 
-	res, err := c.httpClient.Get(url)
+	var text string
+	var status int
+	err := c.httpClient.NewRequest("GET", url).Into(&text).
+		StatusInto(&status).
+		Run()
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to Service Fabric server %+v on %s", err, url)
+		return -1, fmt.Errorf("failed to connect to Service Fabric server: %s", err)
 	}
-	return res, nil
+	return status, nil
 }
 
-func (c Client) getURL(basePath string, paramsFuncs ...queryParamsFunc) string {
+func (c ServiceFabricClient) getURL(basePath string, paramsFuncs ...queryParamsFunc) string {
 	params := []string{"api-version=" + c.apiVersion}
 
 	for _, paramsFunc := range paramsFuncs {
 		params = paramsFunc(params)
 	}
 
-	return fmt.Sprintf("%s/%s?%s", c.endpoint, basePath, strings.Join(params, "&"))
+	return fmt.Sprintf("/%s?%s",basePath, strings.Join(params, "&"))
+}
+
+func (c ServiceFabricClient) postHTTP(basePath string,body []byte,paramsFuncs ...queryParamsFunc)([]byte,int,error){
+	if c.httpClient == nil {
+		return nil,0, errors.New("invalid http client provided")
+	}
+
+	url := c.getURL(basePath,paramsFuncs...)
+	var responseBody interface{}
+	var status int
+	err := c.
+		httpClient.
+		NewRequest("POST", url).
+		Into(&responseBody).
+		StatusInto(&status).
+		Run()
+
+	if err != nil {
+		return nil,status, fmt.Errorf("failed connecting to Service Fabric server, status code %d: %s", status, err)
+	}
+
+	if responseBody != nil{
+		b, err := json.Marshal(responseBody)
+		return b, status, err
+	}
+
+	return []byte{},status,nil
+
 }
 
 func getString(str *string) string {
