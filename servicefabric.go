@@ -14,8 +14,8 @@ import (
 // DefaultAPIVersion is a default Service Fabric REST API version
 const DefaultAPIVersion = "6.0"
 
-var ErrApplicationNotFound = errors.New("service fabric application not found")
-var ErrApplicationNotExists = errors.New("service fabric application does not exist")
+var ErrResourceNotFound = errors.New("service fabric resourcenot found")
+var ErrResourceNotExists = errors.New("service fabric resource does not exist")
 
 // Client for Service Fabric.
 type ServiceFabricClient struct {
@@ -70,10 +70,10 @@ func (c ServiceFabricClient) GetApplications() (*ApplicationItemsPage, error) {
 func (c ServiceFabricClient) GetApplication(appName string) (*ApplicationItem, error) {
 	var app *ApplicationItem
 
-	res,status, err := c.getHTTP("Applications/"+appName, withParam("api-version",c.apiVersion))
+	res, status, err := c.getHTTP("Applications/"+appName, withParam("api-version", c.apiVersion))
 
-	if status == http.StatusNoContent{
-		return nil,ErrApplicationNotExists
+	if status == http.StatusNoContent {
+		return nil, ErrResourceNotExists
 	}
 
 	if err != nil {
@@ -87,10 +87,10 @@ func (c ServiceFabricClient) GetApplication(appName string) (*ApplicationItem, e
 func (c ServiceFabricClient) GetDeployment(deploymentName string) (interface{}, error) {
 	var deployment interface{}
 
-	res, status, err := c.getHTTP("ComposeDeployments/"+deploymentName, withParam("api-version",c.apiVersion))
+	res, status, err := c.getHTTP("ComposeDeployments/"+deploymentName, withParam("api-version", c.apiVersion))
 
-	if status == http.StatusNoContent{
-		return nil, ErrApplicationNotExists
+	if status == http.StatusNoContent {
+		return nil, ErrResourceNotExists
 	}
 
 	if err != nil {
@@ -101,12 +101,11 @@ func (c ServiceFabricClient) GetDeployment(deploymentName string) (interface{}, 
 	return deployment, err
 }
 
-
 func (c ServiceFabricClient) GetServices(appName string) (*ServiceItemsPage, error) {
 	var aggregateServiceItemsPages ServiceItemsPage
 	var continueToken string
 	for {
-		res,_, err := c.getHTTP("Applications/"+appName+"/$/GetServices", withContinue(continueToken))
+		res, _, err := c.getHTTP("Applications/"+appName+"/$/GetServices", withContinue(continueToken))
 		if err != nil {
 			return nil, err
 		}
@@ -136,17 +135,35 @@ func (c ServiceFabricClient) GetClusterHealth() (bool, error) {
 	return res == http.StatusOK, nil
 }
 
-func (c ServiceFabricClient) DeleteService(serviceId string) error {
-	_ ,_, err := c.postHTTP("Services/" + serviceId + "/$/Delete",[]byte{}, withParam("api-version",c.apiVersion))
+func (c ServiceFabricClient) GetClusterManifest() (m ClusterManifest, err error) {
+	res, _, err := c.getHTTP("/$/GetClusterManifest",
+		withParam("api-version", c.apiVersion), withParam("ConfigurationApiVersion", "1.0"))
 	if err != nil {
-		return errors.Wrap(err,"failed deleting service")
+		return m, fmt.Errorf("error getting cluster configuration: %s", err)
+	}
+
+	var cmw ClusterManifestWrapper
+	err = json.Unmarshal(res, &cmw)
+	if err != nil {
+		return m, err
+	}
+
+	err = xml.Unmarshal([]byte(cmw.Manifest), &m)
+
+	return m, err
+}
+
+func (c ServiceFabricClient) DeleteService(serviceId string) error {
+	_, _, err := c.postHTTP("Services/"+serviceId+"/$/Delete", []byte{}, withParam("api-version", c.apiVersion))
+	if err != nil {
+		return errors.Wrap(err, "failed deleting service")
 	}
 
 	return nil
 }
 
 func (c ServiceFabricClient) DeleteApplication(applicationId string) error {
-	_ ,status, err := c.postHTTP("Applications/" + applicationId + "/$/Delete",[]byte{},withParam("api-version",c.apiVersion))
+	_, status, err := c.postHTTP("Applications/"+applicationId+"/$/Delete", []byte{}, withParam("api-version", c.apiVersion))
 
 	if err != nil {
 		// handle unexpected status
@@ -155,17 +172,17 @@ func (c ServiceFabricClient) DeleteApplication(applicationId string) error {
 		}
 
 		if status == http.StatusNotFound {
-			return ErrApplicationNotFound
+			return ErrResourceNotFound
 		}
 
-		return errors.Wrap(err,"failed deleting application")
+		return errors.Wrap(err, "failed deleting application")
 	}
 
 	return nil
 }
 
-func (c ServiceFabricClient) DeleteComposeDeployment(deploymentName string) error{
-	_ ,status, err := c.postHTTP("ComposeDeployments/" + deploymentName+ "/$/Delete",[]byte{},withParam("api-version",c.apiVersion))
+func (c ServiceFabricClient) DeleteComposeDeployment(deploymentName string) error {
+	_, status, err := c.postHTTP("ComposeDeployments/"+deploymentName+"/$/Delete", []byte{}, withParam("api-version", c.apiVersion))
 	if err != nil {
 		// handle unexpected status
 		if status > 200 && status < 300 {
@@ -173,16 +190,16 @@ func (c ServiceFabricClient) DeleteComposeDeployment(deploymentName string) erro
 		}
 
 		if status == http.StatusNotFound {
-			return ErrApplicationNotFound
+			return ErrResourceNotFound
 		}
-		return errors.Wrap(err,"failed deleting compose deployment")
+		return errors.Wrap(err, "failed deleting compose deployment")
 	}
 
 	return nil
 
 }
 func (c ServiceFabricClient) GetServiceExtension(appType, applicationVersion, serviceTypeName, extensionKey string, response interface{}) error {
-	res,_, err := c.getHTTP("ApplicationTypes/"+appType+"/$/GetServiceTypes", withParam("ApplicationTypeVersion", applicationVersion))
+	res, _, err := c.getHTTP("ApplicationTypes/"+appType+"/$/GetServiceTypes", withParam("ApplicationTypeVersion", applicationVersion))
 	if err != nil {
 		return fmt.Errorf("error requesting service extensions: %v", err)
 	}
@@ -240,7 +257,7 @@ func (c ServiceFabricClient) GetProperties(name string) (bool, map[string]string
 
 	var continueToken string
 	for {
-		res,_, err := c.getHTTP("Names/"+name+"/$/GetProperties", withContinue(continueToken), withParam("IncludeValues", "true"))
+		res, _, err := c.getHTTP("Names/"+name+"/$/GetProperties", withContinue(continueToken), withParam("IncludeValues", "true"))
 		if err != nil {
 			return false, nil, err
 		}
@@ -277,9 +294,9 @@ func (c ServiceFabricClient) nameExists(propertyName string) (bool, error) {
 	return res == http.StatusOK, nil
 }
 
-func (c ServiceFabricClient) getHTTP(basePath string, paramsFuncs ...queryParamsFunc) ([]byte,int, error) {
+func (c ServiceFabricClient) getHTTP(basePath string, paramsFuncs ...queryParamsFunc) ([]byte, int, error) {
 	if c.httpClient == nil {
-		return nil,0, errors.New("invalid http client provided")
+		return nil, 0, errors.New("invalid http client provided")
 	}
 
 	var text interface{}
@@ -292,7 +309,7 @@ func (c ServiceFabricClient) getHTTP(basePath string, paramsFuncs ...queryParams
 		Run()
 
 	if err != nil {
-		return nil,status, fmt.Errorf("failed connecting to Service Fabric server, status code %d: %s",status, err)
+		return nil, status, fmt.Errorf("failed connecting to Service Fabric server, status code %d: %s", status, err)
 	}
 
 	b, err := json.Marshal(text)
@@ -325,15 +342,15 @@ func (c ServiceFabricClient) getURL(basePath string, paramsFuncs ...queryParamsF
 		params = paramsFunc(params)
 	}
 
-	return fmt.Sprintf("/%s?%s",basePath, strings.Join(params, "&"))
+	return fmt.Sprintf("/%s?%s", basePath, strings.Join(params, "&"))
 }
 
-func (c ServiceFabricClient) postHTTP(basePath string,body []byte,paramsFuncs ...queryParamsFunc)([]byte,int,error){
+func (c ServiceFabricClient) postHTTP(basePath string, body []byte, paramsFuncs ...queryParamsFunc) ([]byte, int, error) {
 	if c.httpClient == nil {
-		return nil,0, errors.New("invalid http client provided")
+		return nil, 0, errors.New("invalid http client provided")
 	}
 
-	url := c.getURL(basePath,paramsFuncs...)
+	url := c.getURL(basePath, paramsFuncs...)
 	var responseBody interface{}
 	var status int
 	err := c.
@@ -344,15 +361,15 @@ func (c ServiceFabricClient) postHTTP(basePath string,body []byte,paramsFuncs ..
 		Run()
 
 	if err != nil {
-		return nil,status, fmt.Errorf("failed connecting to Service Fabric server, status code %d: %s", status, err)
+		return nil, status, fmt.Errorf("failed connecting to Service Fabric server, status code %d: %s", status, err)
 	}
 
-	if responseBody != nil{
+	if responseBody != nil {
 		b, err := json.Marshal(responseBody)
 		return b, status, err
 	}
 
-	return []byte{},status,nil
+	return []byte{}, status, nil
 
 }
 

@@ -197,3 +197,27 @@ type ServiceExtensionLabels struct {
 		Key     string   `xml:"Key,attr"`
 	}
 }
+
+//ClusterManifest represents the cluster manifest json file
+type ClusterManifestWrapper struct {
+	Manifest string `json:"Manifest"`
+}
+
+type ClusterManifest struct {
+	XMLName        xml.Name       `xml:"ClusterManifest"`
+	FabricSettings FabricSettings `xml:"FabricSettings"`
+	//NodeTypes
+	//Infrastructure
+}
+
+type FabricSettings struct {
+	XMLName  xml.Name `xml:"FabricSettings"`
+	Sections []struct {
+		//XMLName xml.Name `xml:"Section"`
+		Name       string `xml:"Name,attr"`
+		Parameters []struct {
+			Name  string `xml:"Name,attr"`
+			Value string `xml:"Value,attr"`
+		} `xml:"Parameter"`
+	} `xml:"Section"`
+}
