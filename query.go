@@ -6,7 +6,7 @@ func withContinue(token string) queryParamsFunc {
 	if len(token) == 0 {
 		return noOp
 	}
-	return withParam("continue", token)
+	return withParam("ContinuationToken", token)
 }
 
 func withParam(name, value string) queryParamsFunc {
